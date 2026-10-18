@@ -1,0 +1,52 @@
+# Base44 sandbox environment for Interstellar.
+#
+# Development-oriented: the app runs from the cloned source (bind mount) on a plain
+# Node runtime image, never from the repo's own Dockerfile (which bakes `COPY . .`
+# and would freeze the code). See AGENTS.md for details.
+#
+#   docker compose -f docker-compose.base44.yml up -d --build
+#
+# No external credentials are required: `config.challenge` is false, the optional
+# Masqr license hook is commented out, and there is no database or third-party API.
+
+services:
+  web:
+    image: node:22-bookworm-slim
+    working_dir: /app
+    restart: on-failure
+    # Interstellar is a single Express process (`node index.js`) that also serves the
+    # static UI and hosts the Wisp + bare endpoints on the same port. Dependencies are
+    # synced from the committed pnpm lockfile on every start; node_modules and the pnpm
+    # store live in named volumes so the source bind mount never hides them.
+    # `node --watch` restarts the process on backend source edits (static assets are
+    # read from disk per request, so UI edits show up on browser reload).
+    command:
+      - sh
+      - -ec
+      - |
+        corepack enable
+        pnpm install --frozen-lockfile --store-dir /pnpm-store
+        exec node --watch index.js
+    environment:
+      - PORT=3000
+      - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - pnpm_store:/pnpm-store
+    healthcheck:
+      # The page itself and one served asset: proves Express is up and `static/` resolves.
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "const u=['http://127.0.0.1:3000/','http://127.0.0.1:3000/assets/js/sj-tp.js'];Promise.all(u.map(x=>fetch(x))).then(r=>{const b=r.filter(x=>!x.ok);if(b.length){console.error('failed: '+b.map(x=>x.url+' → '+x.status).join(', '));process.exit(1)}process.exit(0)}).catch(e=>{console.error('failed: '+String(e));process.exit(1)})"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  node_modules:
+  pnpm_store:
