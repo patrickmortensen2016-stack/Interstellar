@@ -34,8 +34,9 @@ docker compose -f docker-compose.base44.yml logs -f web
   `@mercuryworkshop/scramjet` package.
 - The client derives its Wisp URL from `location.host` (`wss://<host>/wisp/`), so no
   public URL or CORS configuration is needed here.
-- The Google AdSense script and the ad-injection block in `static/assets/js/m1.js` are
-  part of upstream; the `Ad-Free` branch strips them.
+- Upstream `static/assets/js/m1.js` injects a hidden click handler that opens a popup ad
+  (`window.open` to a random ad domain). That block is removed in this branch; the
+  Google AdSense script tags in the HTML and the ad slots are still upstream's.
 
 ## Credentials
 
